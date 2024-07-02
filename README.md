@@ -34,6 +34,7 @@ https://github.com/Sirius-RX/SPDev/blob/main/SPSMU/
   - close()
     - Shutdown Outputs
 
+---
 ### Other codes
 - SNDR_fminsearch
   - One FFT with fminsearch
