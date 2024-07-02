@@ -193,11 +193,11 @@ with openDwfDevice(dwf) as device:
     decimate  = 125    # ADC decimate倍率
     nbit      = 6      # bit数
 
-    # 电源板初始化，如果没有电源板请注释掉这一段
-    rm = pyvisa.ResourceManager()
-    spsmu = rm.open_resource('ASRL3::INSTR') # 这里括号里的名称会根据设备不同而不同，请先运行SPSmu_find找到自己这边电源板对应的名称
-    spsmu.baud_rate = 921600
-    voltage_initial.v_initial(spsmu)
+    # # 电源板初始化，如果没有电源板请注释掉这一段
+    # rm = pyvisa.ResourceManager()
+    # spsmu = rm.open_resource('ASRL4::INSTR') # 这里括号里的名称会根据设备不同而不同，请先运行SPSmu_find找到自己这边电源板对应的名称
+    # spsmu.baud_rate = 921600
+    # voltage_initial.v_initial(spsmu)
 
     #实时作图
     print('----------------------start----------------------')

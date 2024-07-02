@@ -144,12 +144,12 @@ with openDwfDevice(dwf) as device:
 
     # 电源板初始化，如果没有电源板请注释掉这一段
     rm = pyvisa.ResourceManager()
-    spsmu = rm.open_resource('ASRL3::INSTR') # 这里括号里的名称会根据设备不同而不同，请先运行SPSmu_find找到自己这边电源板对应的名称
+    # spsmu = rm.open_resource('ASRL3::INSTR') # 这里括号里的名称会根据设备不同而不同，请先运行SPSmu_find找到自己这边电源板对应的名称
     spsmu17 = rm.open_resource('USB0::0x0AAD::0x0088::114817::INSTR')
     spsmu16 = rm.open_resource('USB0::0x0AAD::0x0088::114816::INSTR')
-    voltage_initial.v_initial(spsmu)
+    # voltage_initial.v_initial(spsmu)
     SGS100A_initial.open_and_set(spsmu16, fsample, 0.7, 'INT')
-    SGS100A_initial.open_and_set(spsmu17, fin, 0.72, 'EXT')
+    SGS100A_initial.open_and_set(spsmu17, fin, 0.65, 'EXT')
     SGS100A_initial.error_find(spsmu16)
     SGS100A_initial.error_find(spsmu17)
 
@@ -159,19 +159,16 @@ with openDwfDevice(dwf) as device:
     print('----------------------start----------------------')
 
     #扫描输入
-    ntot = 10    
+    ntot = 24    
     x = np.ones(ntot+1)
     y = np.ones(ntot+1)
     for i in range(ntot+1):
-        fsample = 750 + (850-750)/ntot*i
-        fin = fsample/decimate*(Nsample*16.25+11)/Nsample
+        fin = fsample/decimate*(Nsample*(14.5+i*0.125)+111)/Nsample
         print("input frequency is %f" %fin)
-        SGS100A_initial.set_frequency(spsmu16, fsample)
         SGS100A_initial.set_frequency(spsmu17, fin)
-        SGS100A_initial.error_find(spsmu16)
         SGS100A_initial.error_find(spsmu17)
         time.sleep(10)    #等待电压写入和稳定
-        x[i] = fsample
+        x[i] = fin
         y[i] = get_data()
         print("SNDR is %f" %y[i])
 
