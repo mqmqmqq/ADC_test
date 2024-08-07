@@ -33,6 +33,11 @@ https://github.com/Sirius-RX/SPDev/blob/main/SPSMU/
     - Used to view all current errors
   - close()
     - Shutdown Outputs
+- discovery_assit
+  - led_brightness()
+    - Used to control the brightness of the led on the digital discovery
+  - supply_set()
+    - Setting the voltage of the voltage channel
 
 ---
 ### Other codes
@@ -48,6 +53,9 @@ https://github.com/Sirius-RX/SPDev/blob/main/SPSMU/
   - Find the input at full swing output
 - realtime_SNDR_8bit
   - An example of an 8bit real-time SNDR
+- 2discovery_realtime_SNDR
+  - Collect data with two discoveries
+  - To do: test simultaneous triggering
 
 
 
