@@ -1,6 +1,7 @@
 '''
-    实时SNDR 6bit版本
-    Li Jie 2024/06/27
+    使用两个discovery实时SNDR 6bit版本
+    请将两台设备的T1连接, 来实现时钟同步
+    Li Jie 2024/07/31
 '''
 
 import time
@@ -8,12 +9,12 @@ import numpy as np
 import matplotlib.pyplot as plt
 import math
 import pyvisa
-from pydwf import DwfLibrary, DwfState, DwfDigitalInSampleMode
-from pydwf.utilities import openDwfDevice
+from pydwf import DwfLibrary, DwfState, DwfDigitalInSampleMode, PyDwfError, DwfDeviceParameter
 from matplotlib.animation import FuncAnimation
 from collections import deque
 from test_lib import FFT_try #from [你的文件夹名字] import FFT_try
 from test_lib import voltage_initial #需要修改初始化电压电流的话请去voltage_initial修改
+from test_lib import discovery_assit
 
 # 全局变量来存储SNDR值
 sdr_queue = deque(maxlen=50)
@@ -36,7 +37,9 @@ def data_process(rgData, frequency, decimate, fsample, Nsample):
     data_step = frequency * decimate / fsample
     print('step: %.4f' % data_step)
     tmp = 1
-    while (tmp + 1 < len(rgData) and rgData[tmp] == rgData[tmp + 1]):
+    rgdata1 = rgData['data1']
+    rgdata2 = rgData['data2']
+    while (tmp + 1 < len(rgdata2) and rgdata2[tmp] == rgdata2[tmp + 1]):
         if tmp > len(rgData)/Nsample*10 :
             tmp = 0
             break
@@ -46,19 +49,20 @@ def data_process(rgData, frequency, decimate, fsample, Nsample):
     data_out = []
     for i in range(Nsample):
         delt = int(round(i * data_step + data_start))
-        if delt < len(rgData):
-            data_out.append(decimal_to_binary_vector(rgData[delt], length=channels))
+        if delt < len(rgdata1):
+            part1 = decimal_to_binary_vector(rgdata1[delt], length=channel1)
+            part2 = decimal_to_binary_vector(rgdata2[delt], length=channel2)
+            data_out.append(part1+part2)
         else:
             data_out.append(0)
     data_array = np.array(data_out)
 
     # 具体数据处理，这里实现的是把码值还原成输出，需要按照需求修改
-    # 下面是一个8bit含有matestable码值的示范
     # 此时data_array是通道从高到低的码值
-    dat_P = data_array[:Nsample, :6]
+    dat_P = data_array[:Nsample, :]
 
     dat_P = dat_P * 2 - 1
-    weight_P = np.array([32, 16, 8, 4, 2, 1])
+    weight_P = np.ones(16)
 
     dat_ana = dat_P @ weight_P / 2
     
@@ -68,19 +72,28 @@ def data_process(rgData, frequency, decimate, fsample, Nsample):
 
 # 从digilent获取数据，一般这里不需要修改
 def get_data():
-    digitalIn.inputOrderSet(False)  # true:24...39,0...23;false:0...23,24...31
-    digitalIn.sampleFormatSet(channels)
-    digitalIn.sampleModeSet(DwfDigitalInSampleMode.Simple)  # Set sample mode to Simple
-    digitalIn.dividerSet(divider)
-    digitalIn.configure(False, True)  # Configure and start acquisition
+    digitalIn1.inputOrderSet(False)  # true:24...39,0...15;false:0...23,24...31
+    digitalIn2.inputOrderSet(False)  # true:24...39,0...15;false:0...23,24...31
+    digitalIn1.sampleFormatSet(channel1)
+    digitalIn1.sampleFormatSet(channel2)
+    digitalIn1.sampleModeSet(DwfDigitalInSampleMode.Simple)  # Set sample mode to Simple
+    digitalIn2.sampleModeSet(DwfDigitalInSampleMode.Simple)  # Set sample mode to Simple
+    digitalIn1.dividerSet(divider1)
+    digitalIn2.dividerSet(divider2)
+    frequency1 = digitalIn1.internalClockInfo() / divider1 / 1e6
+    frequency2 = digitalIn2.internalClockInfo() / divider2 / 1e6
+    print('实际采样频率分别是 %.2fMHz, %.2fMHz' % (frequency1,frequency2)) # 打印显示现在实际的输出频率
+    if frequency1 != frequency2 :
+        print("请确认, 两个采样频率不一样")
 
-    frequency = digitalIn.internalClockInfo() / divider / 1e6
-    print('sample frequency is %.2fMHz' % frequency) # 打印显示现在实际的输出频率
+    digitalIn1.configure(False, True)  # Configure and start acquisition
+    digitalIn2.configure(False, True)  # Configure and start acquisition
+
 
     # 等待到数据存取完毕
     while True:
         time.sleep(0.1)
-        sts = digitalIn.status(True)
+        sts = digitalIn1.status(True)
 
         if sts in (DwfState.Config, DwfState.Prefill, DwfState.Armed):
             continue
@@ -90,12 +103,20 @@ def get_data():
             print("Error")
             return None, None, None, None
 
-    print("available %.0f, lost %.0f, corrupt %.0f" % digitalIn.statusRecord()) # 显示有效的数据数，丢失和损坏数据数
+    print("device1 available %.0f, lost %.0f, corrupt %.0f" % digitalIn1.statusRecord()) # 显示有效的数据数，丢失和损坏数据数
+    print("device2 available %.0f, lost %.0f, corrupt %.0f" % digitalIn2.statusRecord()) # 显示有效的数据数，丢失和损坏数据数
 
     # Get acquisition data for all specified channels
-    rgData = digitalIn.statusData(int(Nsample * (math.ceil(frequency * decimate / fsample) + 1000)))
+    rgData1 = digitalIn1.statusData(int(Nsample * (math.ceil(frequency1 * decimate / fsample) + 1000)))
+    rgData2 = digitalIn2.statusData(int(Nsample * (math.ceil(frequency2 * decimate / fsample) + 1000)))
+
+    #这里也可以用来调换顺序
+    rgData = {
+        'data1' : rgData1,
+        'data2' : rgData2
+    }
  
-    data_out = data_process(rgData, frequency, decimate, fsample, Nsample) # 调用上面的函数处理数据
+    data_out = data_process(rgData, frequency1, decimate, fsample, Nsample) # 调用上面的函数处理数据
 
     SNR, SNDR, SFDR, THD, ENOB, FLOOR_NOISE, HD, fffff = \
         FFT_try.fft_test(data_out, fsample / decimate * 1e6, 10, 0, Nsample, 0)
@@ -155,13 +176,39 @@ def updata(frame):
 
 
 # 主要程序部分
-# -----------------------------下面需要修改--------------------------------
-dwf = DwfLibrary()
-with openDwfDevice(dwf) as device:
-    digitalIn = device.digitalIn
-    channels  = 6     # 使用的通道数
+
+try:
+    dwf = DwfLibrary()
+    device_count = dwf.deviceEnum.enumerateDevices()
+    if device_count < 2:
+        print("连接的仪器没有两台")
+        
+    device1 = dwf.deviceControl.open(-1)
+    device2 = dwf.deviceControl.open(-1)
+    discovery_assit.led_brightness(device1, 100)
+    discovery_assit.led_brightness(device2, 20)
+    print("led更亮的那一台是device1, 暗的那一台是device2")
+
+    #下面的代码在锁两台仪器的时钟
+    # 0--使用内部时钟
+    # 1--将参考时钟通过T1送出去
+    # 2--使用T1的参考时钟
+    # 3--把T1作为参考 I/O
+    device1.paramSet(DwfDeviceParameter.ClockMode, 1)
+    device2.paramSet(DwfDeviceParameter.ClockMode, 2)
+    print("device1送出参考时钟, device2接受参考时钟")
+
+    # -----------------------------下面需要修改--------------------------------
+
+    #如果物理连接和仪器标号不一样，最方便的是交换下面两行代码
+    digitalIn1 = device1.digitalIn
+    digitalIn2 = device2.digitalIn
+    channel1  = 8  #device1中调用的通道数
+    channel2  = 8   #device2中调用的通道数
+    channels  = channel1 + channel2     # 使用的通道数
     Nsample   = 65536  # FFT的点数
-    divider   = 10     # 主时钟频率除以分频率就是采样频率，默认主时钟频率为 800MHz，实际频率取决于窗口输出。
+    divider1   = 10     # 主时钟频率除以分频率就是采样频率，默认digital主时钟频率为 800MHz，实际频率取决于窗口输出。
+    divider2   = 10     # analog和digital的主时钟频率不一样，所以用的仪器不同就要设置不同的比例，默认的alanlog主时钟是100MHz。
     fsample   = 800    # ADC采样频率，单位为MHz
     decimate  = 125    # ADC decimate倍率
     nbit      = 6      # bit数
@@ -171,6 +218,7 @@ with openDwfDevice(dwf) as device:
     # spsmu = rm.open_resource('ASRL3::INSTR') # 这里括号里的名称会根据设备不同而不同，请先运行SPSmu_find找到自己这边电源板对应的名称
     # spsmu.baud_rate = 921600
     # voltage_initial.v_initial(spsmu)
+
 
     #实时作图
     print('----------------------start----------------------')
@@ -196,5 +244,13 @@ with openDwfDevice(dwf) as device:
     ani = FuncAnimation(fig, updata, frames=range(100), blit=False, interval=1000)
 
     plt.show()
-#-----------------------------上面需要修改--------------------------------
+    #-----------------------------上面需要修改--------------------------------
+    #下面增加的是关闭仪器和报错处理
+    device1.__exit__()
+    device2.__exit__()
+except PyDwfError as exception :
+    print("PyDwfError:", exception)
+except :
+    print("Other error")
+
 

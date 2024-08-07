@@ -4,7 +4,7 @@ test ADC with digital discovery
 ---
 ## test
 ### To start
-* python ≥ 3.9
+* 3.9 ≤ python ≤ 3.11
 * pip install -r requirements.txt
 * The specific description and code for the power supply board is at the following address:
 https://github.com/Sirius-RX/SPDev/blob/main/SPSMU/

@@ -26,6 +26,7 @@
 '''
 
 import time
+import pyvisa
 
 def v_initial(spsmu):
     spsmu.baud_rate = 921600
@@ -108,3 +109,9 @@ def v_initial(spsmu):
     spsmu.write("sour:curr 15,1" )
     time.sleep(0.1)
 
+if __name__ == "__main__":
+    rm = pyvisa.ResourceManager()
+    spsmu = rm.open_resource('ASRL3::INSTR')
+    spsmu.baud_rate = 921600
+
+    v_initial(spsmu)
