@@ -103,9 +103,8 @@ def v_initial(spsmu):
     set_mode(spsmu, 14, 'fv', 'MA50')
     set_mode(spsmu, 15, 'fi', 'UA20')
     set_mode(spsmu, 16, 'hizv', 'MA50')
-    spsmu.write("sour:mode 15,fi,mi,UA20")
-    spsmu.write("sour:mode 16,hizv,mi,MA50")
 
+    
     set_v(spsmu, 1, 3.3)        #channel 1, TAVDD
     set_v(spsmu, 2, 0.95)       #channel 2, VDDX
     set_v(spsmu, 3, 0.9)        #channel 3, LOGIC
